@@ -1,6 +1,6 @@
 locals {
   security_groups = [
-    { name_suffix = "ssh-sg",       type = "public" },
+    { name_suffix = "ssh-sg", type = "public" },
     { name_suffix = "public-http-sg", type = "public" },
     { name_suffix = "private-http-sg", type = "private" }
   ]

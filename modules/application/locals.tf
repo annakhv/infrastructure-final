@@ -10,7 +10,7 @@ locals {
   ])
 
   public_http_sg_id = one([
-    for sg in var.sgs: sg.id
+    for sg in var.sgs : sg.id
     if sg.name != null && sg.name != "" && can(sg.name) && endswith(sg.name, "public-http-sg")
   ])
 }
