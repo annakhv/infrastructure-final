@@ -8,7 +8,7 @@ terraform {
 
 
 module "application" {
-  source            = ".//application"
+  source            = ".//modules//application"
   sgs               = module.network_security.sg_ids
   vpc_id            = module.network.vpc_id
   public_subnet_ids = module.network.subnet_ids
@@ -16,7 +16,7 @@ module "application" {
 }
 
 module "network" {
-  source              = ".//network"
+  source              = ".//modules//network"
   allowed_ip_range    = var.allowed_ip_range
   project_name        = var.project_name
   public_subnet_azs   = var.public_subnet_azs
@@ -25,7 +25,7 @@ module "network" {
 }
 
 module "network_security" {
-  source           = ".//network_security"
+  source           = ".//modules//network_security"
   vpc_id           = module.network.vpc_id
   allowed_ip_range = var.allowed_ip_range
   project_name     = var.project_name
