@@ -1,0 +1,650 @@
+Subject: [PATCH] comit
+init
+---
+Index: modules/.terraform.lock.hcl
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/.terraform.lock.hcl b/modules/.terraform.lock.hcl
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/.terraform.lock.hcl	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,24 @@
++# This file is maintained automatically by "terraform init".
++# Manual edits may be lost in future updates.
++
++provider "registry.terraform.io/hashicorp/aws" {
++  version = "6.31.0"
++  hashes = [
++    "h1:pQvUqZS7sRQzYj06cmDoRL/AkRgGo16laRl2nDQC0hQ=",
++    "zh:0184b83f61dfb2f90f051d6a10e85d554809eb7dec13c49000bc884cfd1e956d",
++    "zh:16f76019ad67f0dfafea2c65b17bd1aa289cb5c275521df71337e23b08af6fec",
++    "zh:296ebaa261729b78159694e3ca709735c5c67913d6107c7e1abd4d1e9b05fc6b",
++    "zh:6b4c37bd7e8abca1b428903212de731b04695dcc59e2ba2acefc3d936b36c4dc",
++    "zh:6f49e2f7464dbb9d6911dd32951637f589d21a5c3c9a7c5056837701977ec803",
++    "zh:6fc4095e59286dd83e9528346390b0b07b3bffa1d46b50027c9e080352207626",
++    "zh:98816c0c5d1b956b564c2d2feb423fdf4eb3e476a6c5202668a285ff3b2d6910",
++    "zh:9b12af85486a96aedd8d7984b0ff811a4b42e3d88dad1a3fb4c0b580d04fa425",
++    "zh:a70b34fb8d5a7d3b3823046938f3c9b0527afa93d02086b3d87ffa668c9a350e",
++    "zh:c24c0a58a8301d13cb4c27738840c8e7e0f29563ccf8d6b5ca1c87fcf21bdf89",
++    "zh:c95d44b2baea56b03198acaaf50f9196504d0207118e1afca7d70b5840315dc4",
++    "zh:db5a7692e2bde721a37b83f89eb9886715dbd17eb45858b1b58b8f7903ce5144",
++    "zh:db706b23a652e06c6c3f5de1da70e55a20a4fc2f73c01c24f7b9cd39a9a35f56",
++    "zh:fb781119fa98d8b0318ffb26ef013d5e674637e8f6a36b4b9c2742f24c022538",
++    "zh:fc459573b260a5a295d5fed442bf4f44fe034a0702ca22a65d320bd3b3e70eb5",
++  ]
++}
+Index: modules/application/locals.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/application/locals.tf b/modules/application/locals.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/application/locals.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,16 @@
++locals {
++  ssh_sg_id = one([
++    for sg in var.sgs : sg.id
++    if sg.name != null && sg.name != "" && can(sg.name) && endswith(sg.name, "ssh-sg")
++  ])
++
++  private_http_sg_id = one([
++    for sg in var.sgs : sg.id
++    if sg.name != null && sg.name != "" && can(sg.name) && endswith(sg.name, "private-http-sg")
++  ])
++
++  public_http_sg_id = one([
++    for sg in var.sgs: sg.id
++    if sg.name != null && sg.name != "" && can(sg.name) && endswith(sg.name, "public-http-sg")
++  ])
++}
+Index: modules/application/main.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/application/main.tf b/modules/application/main.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/application/main.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,88 @@
++resource "aws_launch_template" "cmtr_vkkq9lu1_template" {
++  name_prefix   = "cmtr-vkkq9lu1-template"
++  instance_type = "t3.micro"
++
++  vpc_security_group_ids = [
++    local.ssh_sg_id,
++    local.private_http_sg_id
++  ]
++
++  user_data = base64encode(file("./application/user.sh"))
++
++  network_interfaces {
++    associate_public_ip_address = false
++    delete_on_termination       = true
++  }
++
++  tag_specifications {
++    resource_type = "instance"
++
++    tags = {
++      Name = "cmtr-vkkq9lu1-app-instance"
++    }
++  }
++}
++
++resource "aws_lb" "cmtr_vkkq9lu1_lb" {
++  name               = "cmtr-vkkq9lu1-lb"
++  load_balancer_type = "application"
++  subnets            = var.public_subnet_ids
++  security_groups    = [local.public_http_sg_id]
++
++  tags = {
++    Name = "cmtr-vkkq9lu1-lb"
++  }
++}
++
++resource "aws_lb_target_group" "cmtr_vkkq9lu1_tg" {
++  name     = "cmtr-vkkq9lu1-tg"
++  port     = 80
++  protocol = "HTTP"
++  vpc_id   = var.vpc_id
++
++  health_check {
++    path = "/"
++  }
++}
++
++resource "aws_lb_listener" "http" {
++  load_balancer_arn = aws_lb.cmtr_vkkq9lu1_lb.arn
++  port              = 80
++  protocol          = "HTTP"
++
++  default_action {
++    type             = "forward"
++    target_group_arn = aws_lb_target_group.cmtr_vkkq9lu1_tg.arn
++  }
++}
++
++resource "aws_autoscaling_group" "cmtr_vkkq9lu1_asg" {
++  name              = "cmtr-vkkq9lu1-asg"
++  desired_capacity  = 2
++  min_size          = 2
++  max_size          = 2
++  health_check_type = "EC2"
++
++  launch_template {
++    id      = aws_launch_template.cmtr_vkkq9lu1_template.id
++    version = "$Latest"
++  }
++
++  lifecycle {
++    ignore_changes = [
++      load_balancers,
++      target_group_arns
++    ]
++  }
++
++  tag {
++    key                 = "Name"
++    value               = "cmtr-vkkq9lu1-asg-instance"
++    propagate_at_launch = true
++  }
++}
++
++resource "aws_autoscaling_attachment" "cmtr_vkkq9lu1_asg_attachment" {
++  autoscaling_group_name = aws_autoscaling_group.cmtr_vkkq9lu1_asg.name
++  lb_target_group_arn    = aws_lb_target_group.cmtr_vkkq9lu1_tg.arn
++}
+Index: modules/application/outputs.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/application/outputs.tf b/modules/application/outputs.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/application/outputs.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,4 @@
++output "dns" {
++
++  value = aws_lb.cmtr_vkkq9lu1_lb.dns_name
++}
+Index: modules/application/user.sh
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/application/user.sh b/modules/application/user.sh
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/application/user.sh	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,17 @@
++#!/bin/bash
++yum install -y httpd
++
++COMPUTE_MACHINE_UUID=$(cat /sys/devices/virtual/dmi/id/product_uuid | tr '[:upper:]' '[:lower:]')
++COMPUTE_INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
++
++cat <<HTML > /var/www/html/index.html
++<html>
++  <body>
++    <h1>This message was generated on instance ${COMPUTE_INSTANCE_ID}</h1>
++    <p>with the following UUID ${COMPUTE_MACHINE_UUID}</p>
++  </body>
++</html>
++HTML
++
++systemctl start httpd
++systemctl enable httpd
+Index: modules/application/variable.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/application/variable.tf b/modules/application/variable.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/application/variable.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,17 @@
++variable "vpc_id" {
++  type = string
++}
++
++variable "public_subnet_ids" {
++  type = list(string)
++}
++
++
++variable "sgs" {
++  type = list(object({ id = string, type = string, name = string }))
++}
++
++variable "instance_type" {
++  description = "instance type of ec2"
++  type        = string
++}
+Index: modules/main.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/main.tf b/modules/main.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/main.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,33 @@
++terraform {
++  required_providers {
++    aws = {
++      source = "hashicorp/aws"
++    }
++  }
++}
++
++
++module "application" {
++  source            = ".//application"
++  sgs               = module.network_security.sg_ids
++  vpc_id            = module.network.vpc_id
++  public_subnet_ids = module.network.subnet_ids
++  instance_type     = var.instance_type
++}
++
++module "network" {
++  source              = ".//network"
++  allowed_ip_range    = var.allowed_ip_range
++  project_name        = var.project_name
++  public_subnet_azs   = var.public_subnet_azs
++  public_subnet_cidrs = var.public_subnet_cidrs
++  vpc_cidr            = var.vpc_cidr
++}
++
++module "network_security" {
++  source           = ".//network_security"
++  vpc_id           = module.network.vpc_id
++  allowed_ip_range = var.allowed_ip_range
++  project_name     = var.project_name
++  sg_ingress_rules = var.sg_ingress_rules
++}
+Index: modules/network/locals.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/network/locals.tf b/modules/network/locals.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/network/locals.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,5 @@
++locals {
++  name_prefix = var.project_name
++  letters     = ["a", "b", "c"]
++}
++
+Index: modules/network/main.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/network/main.tf b/modules/network/main.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/network/main.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,54 @@
++# VPC
++resource "aws_vpc" "cmtr_vkkq9lu1_vpc" {
++  cidr_block           = var.vpc_cidr
++  enable_dns_support   = true
++  enable_dns_hostnames = true
++
++  tags = {
++    Name = "${local.name_prefix}-vpc"
++  }
++}
++
++resource "aws_subnet" "public" {
++  count = length(var.public_subnet_cidrs)
++
++  vpc_id                  = aws_vpc.cmtr_vkkq9lu1_vpc.id
++  cidr_block              = var.public_subnet_cidrs[count.index]
++  availability_zone       = var.public_subnet_azs[count.index]
++  map_public_ip_on_launch = true
++
++  tags = {
++    Name = "${local.name_prefix}-public-subnet-${local.letters[count.index]}"
++  }
++}
++
++
++# Internet Gateway
++resource "aws_internet_gateway" "cmtr_vkkq9lu1_igw" {
++  vpc_id = aws_vpc.cmtr_vkkq9lu1_vpc.id
++
++  tags = {
++    Name = "${local.name_prefix}-igw"
++  }
++}
++
++# Route Table
++resource "aws_route_table" "cmtr_vkkq9lu1_rt" {
++  vpc_id = aws_vpc.cmtr_vkkq9lu1_vpc.id
++
++  route {
++    cidr_block = "0.0.0.0/0"
++    gateway_id = aws_internet_gateway.cmtr_vkkq9lu1_igw.id
++  }
++
++  tags = {
++    Name = "${local.name_prefix}-rt"
++  }
++}
++
++
++resource "aws_route_table_association" "public_subnet" {
++  count          = length(aws_subnet.public)
++  subnet_id      = aws_subnet.public[count.index].id
++  route_table_id = aws_route_table.cmtr_vkkq9lu1_rt.id
++}
+Index: modules/network/outputs.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/network/outputs.tf b/modules/network/outputs.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/network/outputs.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,9 @@
++output "vpc_id" {
++  value = aws_vpc.cmtr_vkkq9lu1_vpc.id
++}
++
++output "subnet_ids" {
++  description = "IDs of all public subnets"
++  value       = [for s in aws_subnet.public : s.id]
++}
++
+Index: modules/network/variables.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/network/variables.tf b/modules/network/variables.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/network/variables.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,25 @@
++variable "allowed_ip_range" {
++  description = "list of Ip address range for secure access"
++  type        = list(string)
++}
++
++variable "project_name" {
++  description = "Project or application name"
++  type        = string
++}
++
++variable "vpc_cidr" {
++  description = "CIDR block for VPC"
++  type        = string
++}
++
++
++variable "public_subnet_azs" {
++  description = "availability zones"
++  type        = list(string)
++}
++variable "public_subnet_cidrs" {
++  description = "List of CIDRs for public subnets"
++  type        = list(string)
++}
++
+Index: modules/network_security/locals.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/network_security/locals.tf b/modules/network_security/locals.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/network_security/locals.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,12 @@
++locals {
++  security_groups = [
++    { name_suffix = "ssh-sg",       type = "public" },
++    { name_suffix = "public-http-sg", type = "public" },
++    { name_suffix = "private-http-sg", type = "private" }
++  ]
++
++  sg_cidrs = [
++    for sg in local.security_groups :
++    sg.type == "public" ? var.allowed_ip_range : null
++  ]
++}
+Index: modules/network_security/main.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/network_security/main.tf b/modules/network_security/main.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/network_security/main.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,30 @@
++
++resource "aws_security_group" "sg" {
++  count       = length(local.security_groups)
++  name        = "${var.project_name}-${local.security_groups[count.index].name_suffix}"
++  description = "Allow ${local.security_groups[count.index].name_suffix} access"
++  vpc_id      = var.vpc_id
++  dynamic "ingress" {
++    for_each = var.sg_ingress_rules
++    content {
++      description = ingress.value.description
++      from_port   = ingress.value.from_port
++      to_port     = ingress.value.to_port
++      protocol    = ingress.value.protocol
++      cidr_blocks = local.sg_cidrs[count.index]
++    }
++  }
++
++  egress {
++    from_port   = 0
++    to_port     = 0
++    protocol    = "-1"
++    cidr_blocks = ["0.0.0.0/0"]
++  }
++
++  tags = {
++    Name = "${var.project_name}-${local.security_groups[count.index].name_suffix}"
++    meta = local.security_groups[count.index].type
++  }
++}
++
+Index: modules/network_security/outputs.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/network_security/outputs.tf b/modules/network_security/outputs.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/network_security/outputs.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,9 @@
++output "sg_ids" {
++  value = [
++    for sg in aws_security_group.sg : {
++      id   = sg.id
++      type = sg.tags["meta"]
++      name = sg.name
++    }
++  ]
++}
+Index: modules/network_security/variables.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/network_security/variables.tf b/modules/network_security/variables.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/network_security/variables.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,24 @@
++variable "vpc_id" {
++  description = "VPC ID where security groups will be created"
++  type        = string
++}
++
++variable "allowed_ip_range" {
++  description = "Allowed IP ranges for SSH and HTTP access"
++  type        = list(string)
++}
++
++variable "sg_ingress_rules" {
++  type = list(object({
++    from_port   = number
++    to_port     = number
++    description = string
++    protocol    = string
++  }))
++}
++
++
++variable "project_name" {
++  description = "Project or application name"
++  type        = string
++}
+Index: modules/terraform.tfvars
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/terraform.tfvars b/modules/terraform.tfvars
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/terraform.tfvars	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,36 @@
++aws_region   = "us-east-1"
++project_name = "cmtr-vkkq9lu1"
++
++vpc_cidr = "10.0.0.0/16"
++
++
++
++public_subnet_cidrs = ["10.0.1.0/24", "10.0.3.0/24", "10.0.5.0/24"]
++public_subnet_azs   = ["us-east-1a", "us-east-1b", "us-east-1c"]
++
++
++sg_ingress_rules = [
++  {
++    description = "SSH access"
++    from_port   = 22
++    to_port     = 22
++    protocol    = "tcp"
++  },
++  {
++    description = "HTTP access"
++    from_port   = 80
++    to_port     = 80
++    protocol    = "tcp"
++  },
++  {
++    description = "HTTP from public HTTP SG"
++    from_port   = 80
++    to_port     = 80
++    protocol    = "tcp"
++
++  }
++
++]
++
++instance_type    = "t3.micro"
++allowed_ip_range = ["18.153.146.156/32", "109.172.192.49/32"]
+Index: modules/variables.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/variables.tf b/modules/variables.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/variables.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,43 @@
++variable "aws_region" {
++  description = "AWS region to deploy resources"
++  type        = string
++}
++
++variable "project_name" {
++  description = "Project name prefix for resources"
++  type        = string
++}
++
++variable "vpc_cidr" {
++  description = "CIDR block for the VPC"
++  type        = string
++}
++
++variable "public_subnet_cidrs" {
++  description = "List of public subnet CIDRs"
++  type        = list(string)
++}
++
++variable "public_subnet_azs" {
++  description = "List of availability zones for public subnets"
++  type        = list(string)
++}
++
++variable "sg_ingress_rules" {
++  type = list(object({
++    description = string
++    from_port   = number
++    to_port     = number
++    protocol    = string
++  }))
++}
++
++
++variable "instance_type" {
++  description = "instance type of ec2"
++  type        = string
++}
++variable "allowed_ip_range" {
++  description = "list of Ip address range for secure access"
++  type        = list(string)
++}
+Index: modules/versions.tf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/modules/versions.tf b/modules/versions.tf
+new file mode 100644
+--- /dev/null	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
++++ b/modules/versions.tf	(revision 31b79c9418ed1c263576ef2188d5a34f131416f1)
+@@ -0,0 +1,3 @@
++terraform {
++  required_version = ">= 1.5.7"
++}
+Index: .gitignore
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+--- /dev/null	(revision 472d7b532e0dc0c9a933a6ae10d3cc1415d5039c)
++++ b/.gitignore	(revision 472d7b532e0dc0c9a933a6ae10d3cc1415d5039c)
+@@ -0,0 +1,7 @@
++# Default ignored files
++/shelf/
++/.idea/workspace.xml
++# Editor-based HTTP Client requests
++/httpRequests/
++.idea
++/modules/.terraform
+\ No newline at end of file
