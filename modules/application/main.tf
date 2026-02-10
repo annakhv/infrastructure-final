@@ -7,7 +7,7 @@ resource "aws_launch_template" "cmtr_vkkq9lu1_template" {
     local.private_http_sg_id
   ]
 
-  user_data = base64encode(file("./application/user.sh"))
+  user_data = base64encode(file("./modules/application/user.sh"))
 
   network_interfaces {
     associate_public_ip_address = false
