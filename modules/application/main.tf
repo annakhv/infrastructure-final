@@ -1,18 +1,13 @@
 resource "aws_launch_template" "cmtr_vkkq9lu1_template" {
   name_prefix   = "cmtr-vkkq9lu1-template"
   instance_type = "t3.micro"
-
+  image_id      = "ami-0c2b8ca1dad447f8a"
   vpc_security_group_ids = [
     local.ssh_sg_id,
     local.private_http_sg_id
   ]
 
   user_data = base64encode(file("./modules/application/user.sh"))
-  network_interfaces {
-    associate_public_ip_address = false
-    delete_on_termination       = true
-  }
-
   tag_specifications {
     resource_type = "instance"
 
