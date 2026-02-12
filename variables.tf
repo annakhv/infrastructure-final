@@ -25,10 +25,13 @@ variable "public_subnet_azs" {
 
 variable "sg_ingress_rules" {
   type = list(object({
-    description = string
-    from_port   = number
-    to_port     = number
-    protocol    = string
+    target_sg_index   = number # index of the target SG
+    description       = string
+    from_port         = number
+    to_port           = number
+    protocol          = string
+    source_sg_indexes = optional(list(number)) # list of source SG indexes
+    use_cidrs         = optional(bool)         # allow CIDR blocks
   }))
 }
 

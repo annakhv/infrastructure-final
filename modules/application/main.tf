@@ -8,7 +8,6 @@ resource "aws_launch_template" "cmtr_vkkq9lu1_template" {
   ]
 
   user_data = base64encode(file("./modules/application/user.sh"))
-
   network_interfaces {
     associate_public_ip_address = false
     delete_on_termination       = true
@@ -57,11 +56,13 @@ resource "aws_lb_listener" "http" {
 }
 
 resource "aws_autoscaling_group" "cmtr_vkkq9lu1_asg" {
-  name              = "cmtr-vkkq9lu1-asg"
-  desired_capacity  = 2
-  min_size          = 2
-  max_size          = 2
-  health_check_type = "EC2"
+  name                = "cmtr-vkkq9lu1-asg"
+  desired_capacity    = 2
+  min_size            = 2
+  max_size            = 2
+  health_check_type   = "EC2"
+  vpc_zone_identifier = var.public_subnet_ids
+
 
   launch_template {
     id      = aws_launch_template.cmtr_vkkq9lu1_template.id
