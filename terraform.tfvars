@@ -1,7 +1,7 @@
 aws_region   = "us-east-1"
 project_name = "cmtr-vkkq9lu1"
 
-vpc_cidr = "10.0.0.0/16"
+vpc_cidr = "10.10.0.0/16"
 
 
 
